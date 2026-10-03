@@ -1,0 +1,41 @@
+{
+  "description": "只记录用户输入、回合结束/中断的时间与标识；不读取提示内容，不调用模型，不阻塞聊天。",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${PLUGIN_ROOT}/hooks/record_event.py\"",
+            "commandWindows": "call python \"%PLUGIN_ROOT%/hooks/record_event.py\"",
+            "timeout": 2
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${PLUGIN_ROOT}/hooks/record_event.py\"",
+            "commandWindows": "call python \"%PLUGIN_ROOT%/hooks/record_event.py\"",
+            "timeout": 2
+          }
+        ]
+      }
+    ],
+    "Interrupt": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${PLUGIN_ROOT}/hooks/record_event.py\"",
+            "commandWindows": "call python \"%PLUGIN_ROOT%/hooks/record_event.py\"",
+            "timeout": 2
+          }
+        ]
+      }
+    ]
+  }
+}
