@@ -96,6 +96,36 @@ class CoordinatorTests(unittest.TestCase):
         self.assertEqual(self.engine.ticks, [])
 
 
+class DisplaySnapshotTests(unittest.TestCase):
+    def test_retained_recap_is_sent_even_when_current_summary_is_empty(self):
+        previous = {"id": "previous", "overview": "完成了一项工作。", "generated_at": "2026-10-02T10:00:00+08:00",
+                    "period_label": "最近60分钟（09:00–10:00）", "display_after_idle_seconds": 90, "unread": False}
+        for status in ("idle", "collecting", "summarizing", "error", "paused"):
+            with self.subTest(status=status):
+                state = {"state": status, "paused": status == "paused", "message": "本次状态",
+                         "summary": None, "display_summary": previous, "display_summary_retained": True}
+                display = service.display_snapshot(state)
+                self.assertEqual(display["summary"]["overview"], previous["overview"])
+                self.assertEqual(display["summary"]["id"], previous["id"])
+                self.assertEqual(display["summary"]["generated_at"], previous["generated_at"])
+                self.assertTrue(display["summary"]["retained"])
+                self.assertNotIn("retained", previous)
+
+    def test_new_recap_replaces_retained_content(self):
+        current = {"id": "new", "overview": "新的成果。"}
+        display = service.display_snapshot({"state": "ready", "paused": False, "message": "已更新",
+                                            "summary": current, "display_summary": current,
+                                            "display_summary_retained": False})
+        self.assertEqual(display["summary"]["id"], "new")
+        self.assertFalse(display["summary"]["retained"])
+
+    def test_no_history_preserves_empty_display(self):
+        display = service.display_snapshot({"state": "idle", "paused": False, "message": "等待新工作",
+                                            "summary": None, "display_summary": None,
+                                            "display_summary_retained": False})
+        self.assertIsNone(display["summary"])
+
+
 class HttpServiceTests(unittest.TestCase):
     def setUp(self):
         self.workspace = tempfile.TemporaryDirectory(prefix="recap-http-test-")

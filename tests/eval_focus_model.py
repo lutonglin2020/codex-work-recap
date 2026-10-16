@@ -40,7 +40,7 @@ def main():
         "id": "b-1", "status": "completed", "startedAt": ended-60, "completedAt": ended,
         "items": [
             {"type": "userMessage", "content": [{"type": "text", "text": "顺便问一下，Python字典的get方法怎么用？"}]},
-            {"type": "agentMessage", "phase": "final_answer", "text": "只是解释语法，没有修改文件或完成项目工作。" + "get方法可以提供默认返回值。"*250 + "这次仅为普通用法咨询，没有实际交付成果。"},
+            {"type": "agentMessage", "phase": "final_answer", "text": "get方法可以在键不存在时提供默认返回值。" + "例如 config.get('timeout', 30) 会读取 timeout，缺少该键时返回 30。"*250},
         ]}, now))
     with tempfile.TemporaryDirectory(prefix="recap-focus-eval-") as temp:
         adapter = CodexAdapter(temp)

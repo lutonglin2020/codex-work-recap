@@ -65,7 +65,7 @@ def dispatch(method, params):
         if version not in ("2024-11-05", "2025-03-26", "2025-06-18", "2026-07-28"):
             version = "2025-06-18"
         return {"protocolVersion": version, "capabilities": {"tools": {}, "resources": {}},
-                "serverInfo": {"name": "work-recap", "version": "0.3.13", "title": "工作回顾"},
+                "serverInfo": {"name": "work-recap", "version": "0.4.1", "title": "工作回顾"},
                 "instructions": "工作回顾仅提供建议。get_recap 只读，refresh_recap 异步生成；不要为了轮询而反复调用模型或给原会话发消息。"}
     if method == "ping":
         return {}

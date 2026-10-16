@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Codex 工作回顾助手 · 图文宣传</title>
+  <style>
+    :root { --ink:#21352b; --muted:#667268; --paper:#f3f3e9; --line:#dce2d6; --lime:#d8f096; --green:#3d5c43; }
+    * { box-sizing:border-box; }
+    html,body { margin:0; }
+    body { background:#d8ddd3; color:var(--ink); font-family:"Microsoft YaHei UI","Microsoft YaHei","PingFang SC",sans-serif; -webkit-font-smoothing:antialiased; }
+    .poster { position:relative; width:1080px; height:1440px; overflow:hidden; background:var(--paper); margin:0 auto 36px; }
+    .poster::before { content:""; position:absolute; right:-310px; top:430px; width:690px; height:690px; border:1px solid #e2e7d9; border-radius:50%; }
+    .poster::after { content:""; position:absolute; right:-245px; top:495px; width:560px; height:560px; border:1px solid #e2e7d9; border-radius:50%; }
+    .content { position:relative; z-index:1; height:100%; padding:72px 80px 80px; }
+    .brand { display:flex; align-items:center; gap:18px; font-family:"Segoe UI",sans-serif; font-size:26px; font-weight:650; letter-spacing:-.4px; }
+    .mark { display:flex; align-items:center; justify-content:center; width:46px; height:46px; border-radius:14px; background:var(--ink); color:var(--lime); font-family:Consolas,monospace; font-size:23px; font-weight:700; letter-spacing:-5px; padding-right:5px; }
+    .edition { margin-left:auto; color:#7f897f; font-size:20px; letter-spacing:2px; font-weight:500; }
+    .eyebrow { display:inline-flex; align-items:center; gap:12px; margin-top:84px; font-size:24px; font-weight:600; color:var(--green); }
+    .eyebrow::before { content:""; width:9px; height:9px; background:var(--green); border-radius:50%; }
+    h1 { margin:30px 0 0; font-size:82px; letter-spacing:-3.5px; line-height:1.25; font-weight:700; }
+    h1 .accent { position:relative; display:inline-block; z-index:0; }
+    h1 .accent::after { content:""; position:absolute; left:-2px; right:-8px; bottom:6px; height:30px; background:var(--lime); z-index:-1; transform:rotate(-1.5deg); border-radius:4px; }
+    .intro { margin:36px 0 0; color:var(--muted); font-size:30px; line-height:1.65; font-weight:400; letter-spacing:.3px; }
+    .footer { position:absolute; left:80px; right:80px; bottom:67px; border-top:1px solid #cfd7c9; padding-top:24px; display:flex; justify-content:space-between; font-size:22px; color:#667466; align-items:center; }
+    .footer strong { font-weight:600; color:var(--green); }
+    .scene { position:relative; height:414px; margin-top:50px; }
+    .scene-label { position:absolute; right:0; top:-4px; font-size:18px; letter-spacing:1px; color:#859080; }
+    .chat { position:absolute; width:380px; height:132px; padding:27px 28px; background:#fffef7; border:1px solid #d9e0d0; border-radius:22px; box-shadow:0 12px 30px #21352b07; }
+    .chat-a { left:9px; top:23px; transform:rotate(-4deg); }
+    .chat-b { right:5px; top:99px; transform:rotate(4deg); }
+    .chat-c { left:36px; top:205px; transform:rotate(-1.5deg); }
+    .chat-title { display:flex; align-items:center; gap:16px; font-size:29px; font-weight:600; }
+    .chat-icon { display:flex; justify-content:center; align-items:center; height:36px; width:36px; background:#edf1e6; border-radius:10px; color:#54704e; font-family:Consolas,monospace; font-size:20px; }
+    .bars { display:flex; gap:8px; margin-top:20px; padding-left:52px; }
+    .bars span { display:block; height:7px; border-radius:4px; background:#dce4d6; }
+    .bars span:first-child { width:127px; } .bars span:last-child { width:61px; }
+    .join { position:absolute; right:151px; top:325px; color:#8ca178; font-size:48px; font-weight:300; }
+    .takeaway { position:absolute; left:0; right:0; bottom:0; padding:30px 34px; border-radius:20px; background:var(--ink); color:#f2f7e9; display:flex; justify-content:space-between; align-items:center; font-size:30px; letter-spacing:.5px; }
+    .takeaway .spark { color:var(--lime); font-family:"Segoe UI",sans-serif; font-size:34px; }
+    .cover .intro { margin-top:29px; }
+    .cover .scene { margin-top:52px; height:500px; }
+    .product h1 { font-size:78px; line-height:1.28; }
+    .product .eyebrow { margin-top:78px; }
+    .product .intro { margin-top:28px; }
+    .demo { position:relative; margin-top:48px; height:390px; border:1px solid #d8e0ce; border-radius:28px; background:linear-gradient(145deg,#e8eddd,#eef1e5); padding:34px 24px; }
+    .demo .caption { text-align:center; font-size:19px; color:#71816a; letter-spacing:.2px; }
+    .collapsed { display:block; width:210px; height:auto; margin:18px auto 0; filter:drop-shadow(0 10px 15px #21352b1a); }
+    .expand-arrow { text-align:center; height:34px; margin-top:3px; font-size:30px; line-height:34px; color:#95a487; }
+    .expanded { display:block; width:866px; height:auto; max-height:185px; object-fit:contain; margin:2px auto 0; filter:drop-shadow(0 15px 16px #21352b14); }
+    .features { margin-top:41px; }
+    .feature { display:flex; gap:22px; padding:25px 0; border-bottom:1px solid #d5ddce; }
+    .feature:last-child { border-bottom:none; }
+    .number { flex:none; display:flex; align-items:center; justify-content:center; width:48px; height:48px; border-radius:50%; background:var(--lime); font-family:"Segoe UI",sans-serif; font-size:20px; font-weight:700; }
+    .feature strong { display:block; font-size:31px; line-height:1.45; font-weight:650; }
+    .feature p { margin:6px 0 0; font-size:25px; color:var(--muted); line-height:1.5; }
+    .release::before,.release::after { display:none; }
+    .release .eyebrow { margin-top:78px; }
+    .release h1 { font-size:76px; }
+    .repo-card { margin-top:48px; background:var(--ink); color:#f1f5e7; border-radius:24px; padding:34px 38px 37px; }
+    .repo-top { display:flex; align-items:center; justify-content:space-between; font-family:"Segoe UI",sans-serif; color:#bac8ae; font-size:23px; }
+    .license { padding:8px 14px; border:1px solid #708765; border-radius:10px; color:var(--lime); font-family:Consolas,monospace; font-size:20px; }
+    .repo-owner { margin-top:32px; color:#c7d2bf; font-family:Consolas,"Segoe UI",monospace; font-size:31px; }
+    .repo-name { margin-top:8px; color:var(--lime); font-family:Consolas,"Segoe UI",monospace; font-size:49px; letter-spacing:-1.6px; font-weight:700; }
+    .repo-hint { margin-top:24px; font-size:22px; color:#c2ceba; }
+    .requirements { margin-top:43px; }
+    .requirements h2 { font-size:29px; margin:0 0 23px; font-weight:650; }
+    .requirement { display:flex; gap:17px; align-items:flex-start; margin-top:19px; font-size:27px; line-height:1.55; }
+    .tick { display:flex; align-items:center; justify-content:center; flex:none; margin-top:6px; width:28px; height:28px; border-radius:50%; color:var(--green); background:#dfe9d4; font-family:"Segoe UI",sans-serif; font-size:17px; font-weight:650; }
+    .requirement b { font-weight:650; }
+    .conditions { margin:28px 0 0 45px; color:var(--muted); font-size:21px; line-height:1.7; }
+    .release .footer { font-size:21px; }
+    @media print { body { background:white; } .poster { margin:0; page-break-after:always; } }
+  </style>
+</head>
+<body>
+  <section class="poster cover" id="cover" aria-label="第一张：忙了一天，推进了什么">
+    <div class="content">
+      <header class="brand"><span class="mark">&lt;&gt;</span><span>Codex Work Recap</span><span class="edition">01 / 03</span></header>
+      <div class="eyebrow">给经常开多个 Codex 聊天的人</div>
+      <h1>忙了一天，<br>到底<span class="accent">推进了什么</span>？</h1>
+      <p class="intro">代码、排查、学习、方案……<br>把分散在聊天里的进展，整理成几句回顾。</p>
+      <div class="scene" aria-label="使用场景示意，不是真实聊天">
+        <span class="scene-label">场景示意</span>
+        <div class="chat chat-a"><div class="chat-title"><span class="chat-icon">&gt;_</span>推进实现</div><div class="bars"><span></span><span></span></div></div>
+        <div class="chat chat-b"><div class="chat-title"><span class="chat-icon">?</span>排查问题</div><div class="bars"><span></span><span></span></div></div>
+        <div class="chat chat-c"><div class="chat-title"><span class="chat-icon">+</span>学习与方案</div><div class="bars"><span></span><span></span></div></div>
+        <div class="join" aria-hidden="true">↘</div>
+        <div class="takeaway"><span>Codex 工作回顾助手</span><span class="spark">几句话，接起进展 ↗</span></div>
+      </div>
+      <footer class="footer"><strong>一个 Windows 桌面插件</strong><span>开源 · GPL-3.0</span></footer>
+    </div>
+  </section>
+
+  <section class="poster product" id="product" aria-label="第二张：顶部胶囊与缓存查看">
+    <div class="content">
+      <header class="brand"><span class="mark">&lt;&gt;</span><span>Codex Work Recap</span><span class="edition">02 / 03</span></header>
+      <div class="eyebrow">屏幕顶部的独立胶囊小窗</div>
+      <h1>进展，几句话。<br><span class="accent">需要时看一眼。</span></h1>
+      <p class="intro">平时收起，悬停或点击展开。</p>
+      <div class="demo">
+        <div class="caption">合成演示 · 与程序共用绘制器</div>
+        <img class="collapsed" src="assets/collapsed.png" alt="合成演示：收起状态的胶囊小窗">
+        <div class="expand-arrow" aria-hidden="true">↓</div>
+        <img class="expanded" src="assets/expanded.png" alt="合成演示：展开后的工作回顾小窗">
+      </div>
+      <div class="features">
+        <div class="feature"><span class="number">01</span><div><strong>跨聊天归纳</strong><p>从本机已保存的主会话中，概括具体进展。</p></div></div>
+        <div class="feature"><span class="number">02</span><div><strong>悬停只读缓存</strong><p>查看已有回顾，不再次调用模型。</p></div></div>
+      </div>
+      <footer class="footer"><strong>少一点来回翻聊天</strong><span>有新摘要，再替换</span></footer>
+    </div>
+  </section>
+
+  <section class="poster release" id="release" aria-label="第三张：开源地址和使用条件">
+    <div class="content">
+      <header class="brand"><span class="mark">&lt;&gt;</span><span>Codex Work Recap</span><span class="edition">03 / 03</span></header>
+      <div class="eyebrow">源码已开放</div>
+      <h1>欢迎试用，<br>也欢迎<span class="accent">一起改进。</span></h1>
+      <div class="repo-card">
+        <div class="repo-top"><span>GitHub</span><span class="license">GPL-3.0-only</span></div>
+        <div class="repo-owner">lutonglin2020 /</div>
+        <div class="repo-name">codex-work-recap</div>
+        <div class="repo-hint">仓库 README 有安装步骤与数据说明</div>
+      </div>
+      <div class="requirements">
+        <h2>使用前，确认这 3 项</h2>
+        <div class="requirement"><span class="tick">✓</span><span><b>Windows</b> 桌面环境、<b>Python 3.11+</b></span></div>
+        <div class="requirement"><span class="tick">✓</span><span>用 <b>ChatGPT 登录 Codex</b>，<br>账号可调用 <b>gpt-6.1-sol</b></span></div>
+        <div class="requirement"><span class="tick">✓</span><span>网络连接和可用模型额度</span></div>
+        <p class="conditions">当前摘要固定使用 gpt-6.1-sol / medium。<br>筛选后的会话内容会交给 Codex 在线模型处理。</p>
+      </div>
+      <footer class="footer"><strong>独立开源项目</strong><span>github.com/lutonglin2020/codex-work-recap</span></footer>
+    </div>
+  </section>
+</body>
+</html>

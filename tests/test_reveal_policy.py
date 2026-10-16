@@ -4,6 +4,21 @@ from recap.reveal_policy import RevealPolicy
 
 
 class RevealPolicyTests(unittest.TestCase):
+    def test_retained_previous_recap_is_manual_only_and_new_recap_can_open(self):
+        policy = RevealPolicy()
+        for now, idle in ((100, 90), (400, 400), (401, 0)):
+            self.assertEqual(policy.step(now, "previous", True, idle,
+                automatic_allowed=False), "closed")
+        self.assertEqual(policy.step(402, "previous", True, 0, hovering=True,
+            manual=True, automatic_allowed=False), "open")
+        self.assertEqual(policy.step(403, "previous", True, 0,
+            automatic_allowed=False), "open")
+        self.assertEqual(policy.step(405, "previous", True, 0,
+            automatic_allowed=False), "closed")
+        self.assertIsNone(policy.last_presented_id)
+        self.assertEqual(policy.last_auto_wall, 0)
+        self.assertEqual(policy.step(406, "new", True, 60), "open")
+
     def test_empty_status_never_auto_opens_even_on_return(self):
         policy = RevealPolicy()
         for now, idle in ((100, 60), (200, 300), (201, 0), (500, 90)):

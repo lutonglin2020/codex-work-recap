@@ -194,6 +194,18 @@ def handler_class(coordinator, token):
     return Handler
 
 
+def display_snapshot(state):
+    """The small window keeps useful history separate from current scheduling."""
+    summary = state.get("display_summary")
+    display = {"state": state["state"], "paused": state["paused"],
+               "message": state["message"], "summary": None}
+    if summary:
+        display["summary"] = {key: summary.get(key) for key in (
+            "id", "overview", "generated_at", "period_label", "display_after_idle_seconds")}
+        display["summary"]["retained"] = bool(state.get("display_summary_retained"))
+    return display
+
+
 def run():
     path = data_path()
     try:
@@ -211,7 +223,7 @@ def run():
 
     def dispatch(endpoint, payload):
         if endpoint == "/api/health":
-            return {"ok": True, "version": "0.3.13", "transport": "file"}
+            return {"ok": True, "version": "0.4.1", "transport": "file"}
         if endpoint == "/api/state":
             return engine.snapshot()
         if endpoint == "/api/action" and isinstance(payload, dict):
@@ -223,7 +235,7 @@ def run():
 
     server = FileServer(path / "ipc", token, dispatch)
     runtime = {"pid": os.getpid(), "transport": "file", "token": token,
-               "root": str(ROOT), "started_at": time.time(), "version": "0.3.13"}
+               "root": str(ROOT), "started_at": time.time(), "version": "0.4.1"}
     atomic_json(path / "runtime.json", runtime)
     server.start()
     threading.Thread(target=coordinator.schedule, daemon=True, name="recap-scheduler").start()
@@ -235,11 +247,8 @@ def run():
     try:
         while not coordinator.stop.is_set():
             state = engine.snapshot()
-            summary = state.get("summary")
-            display = {"state": state["state"], "paused": state["paused"],
-                       "message": state["message"], "summary": None}
-            if summary:
-                display["summary"] = {key: summary.get(key) for key in ("id", "overview", "generated_at", "period_label", "display_after_idle_seconds")}
+            display = display_snapshot(state)
+            summary = display["summary"]
             if display != last_display:
                 atomic_json(path / "display.json", display)
                 last_display = display

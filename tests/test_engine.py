@@ -658,6 +658,95 @@ class EngineTests(unittest.TestCase):
         self.assertIsNone(self.engine.snapshot()["summary"])
         self.assertIsNotNone(self.engine.store.summary(old["id"]))
 
+    def test_first_empty_window_has_no_retained_display(self):
+        state = self.engine.tick()
+        self.assertIsNone(state["summary"])
+        self.assertIsNone(state["display_summary"])
+        self.assertFalse(state["display_summary_retained"])
+        self.assertFalse(self.adapter.calls)
+
+    def test_expired_recap_remains_displayable_without_reentering_current_window(self):
+        self.ready_sources()
+        old = self.engine.tick()["summary"]
+        self.clock.advance(7200)
+        state = self.engine.tick()
+        self.assertIsNone(state["summary"])
+        self.assertEqual(state["display_summary"], old)
+        self.assertTrue(state["display_summary_retained"])
+        self.assertEqual(len(self.adapter.calls), 1)
+        self.assertEqual(self.engine.store.get("visible_summary_id"), old["id"])
+
+    def test_retained_recap_survives_seen_state_and_restart_without_rewriting_it(self):
+        self.ready_sources()
+        old = self.engine.tick()["summary"]
+        self.engine.mark_seen(old["id"])
+        saved = self.engine.store.summary(old["id"])
+        self.clock.advance(86400)
+        self.engine.close()
+        self.engine = Engine(self.temp.name, adapter=self.adapter, clock=self.clock)
+        state = self.engine.snapshot()
+        self.assertIsNone(state["summary"])
+        self.assertEqual(state["display_summary"], saved)
+        self.assertFalse(state["display_summary"]["unread"])
+        self.assertTrue(state["display_summary_retained"])
+        self.assertEqual(self.engine.store.summary(old["id"]), saved)
+
+    def test_failed_update_keeps_previous_display_and_pending_evidence(self):
+        self.ready_sources()
+        old = self.engine.tick()["summary"]
+        self.clock.advance(7200)
+        self.adapter.sources.append(source(3, self.clock(), age=0))
+        self.adapter.fail = True
+        state = self.engine.tick()
+        self.assertEqual(state["state"], "error")
+        self.assertIsNone(state["summary"])
+        self.assertEqual(state["display_summary"], old)
+        self.assertTrue(state["display_summary_retained"])
+        self.assertEqual([item["id"] for item in self.engine.store.sources(new_only=True)],
+                         [self.adapter.sources[-1]["id"]])
+
+    def test_inflight_update_keeps_previous_display(self):
+        self.ready_sources()
+        old = self.engine.tick()["summary"]
+        self.clock.advance(7200)
+        self.adapter.sources.append(source(3, self.clock(), age=0))
+        self.adapter.started, self.adapter.release = threading.Event(), threading.Event()
+        worker = threading.Thread(target=self.engine.tick)
+        worker.start()
+        try:
+            self.assertTrue(self.adapter.started.wait(2))
+            state = self.engine.snapshot()
+            self.assertEqual(state["state"], "summarizing")
+            self.assertEqual(state["display_summary"], old)
+            self.assertTrue(state["display_summary_retained"])
+        finally:
+            self.adapter.release.set()
+            worker.join(3)
+        self.assertFalse(worker.is_alive())
+
+    def test_successful_update_replaces_retained_recap(self):
+        self.ready_sources()
+        old = self.engine.tick()["summary"]
+        self.clock.advance(7200)
+        self.adapter.sources.append(source(3, self.clock(), age=0))
+        self.adapter.overview = "完成了新的工作。"
+        state = self.engine.tick()
+        self.assertNotEqual(state["summary"]["id"], old["id"])
+        self.assertEqual(state["display_summary"], state["summary"])
+        self.assertFalse(state["display_summary_retained"])
+        self.assertNotIn(old["id"], [item["id"] for item in self.adapter.calls[-1]])
+        self.assertEqual(len(self.adapter.calls[-1]), 1)
+
+    def test_retained_display_skips_empty_or_old_policy_history(self):
+        self.ready_sources()
+        old = self.engine.tick()["summary"]
+        self.engine.store.save_summary({**old, "id": "legacy", "policy_version": 1}, {}, self.clock() + 1)
+        self.engine.store.save_summary({**old, "id": "empty", "overview": "  "}, {}, self.clock() + 2)
+        self.engine.store.set("visible_summary_id", None)
+        state = self.engine.snapshot()
+        self.assertEqual(state["display_summary"]["id"], old["id"])
+        self.assertTrue(state["display_summary_retained"])
+
     def test_old_morning_opportunity_does_not_disable_v2_morning_policy(self):
         self.clock.now = timestamp(2, 8)
         self.engine.store.set("natural_opportunities", {"2026-10-02:morning": "generated"})
@@ -704,6 +793,9 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(len(self.adapter.calls), 2)
         self.assertIsNone(result["summary"])
         self.assertTrue(self.engine.store.summary(morning["id"])["unread"])
+        self.assertEqual(result["display_summary"]["id"], morning["id"])
+        self.assertEqual(result["display_summary"]["generated_at"], morning["generated_at"])
+        self.assertTrue(result["display_summary_retained"])
 
 
 if __name__ == "__main__": unittest.main()

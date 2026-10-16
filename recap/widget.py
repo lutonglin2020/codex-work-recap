@@ -24,21 +24,37 @@ PARAGRAPH_GAP = 7
 
 def wrap_lines(text, width, measure):
     """One shared layout for height calculation and painting; no text truncation."""
+    closing = frozenset("，。、；：！？）》】〕〉」』〗〙〛”’…,.!?;:%‰)]}")
+
+    def keep_closing(parts):
+        grouped = []
+        for part in parts:
+            if grouped and all(character in closing for character in part):
+                grouped[-1] += part
+            else:
+                grouped.append(part)
+        return grouped
+
     lines = []
     for paragraph in text.split("\n"):
         line = ""
-        for token in re.findall(r"[A-Za-z0-9_./:@#%+-]+|\s+|.", paragraph):
+        for token in keep_closing(re.findall(r"[A-Za-z0-9_./:@#%+-]+|\s+|.", paragraph)):
             if line and measure(line + token) > width:
                 lines.append(line)
                 line = ""
             if measure(token) <= width:
                 line += token
             else:
-                for character in token:
-                    if line and measure(line + character) > width:
-                        lines.append(line)
-                        line = ""
-                    line += character
+                for unit in keep_closing(token):
+                    # Keep a closing mark with its preceding character even
+                    # inside a long path/word. If the whole group cannot fit
+                    # on an empty line, preserve the old character fallback;
+                    # padding the line past its width would clip the text.
+                    for part in ([unit] if measure(unit) <= width else unit):
+                        if line and measure(line + part) > width:
+                            lines.append(line)
+                            line = ""
+                        line += part
         lines.append(line)
     return lines or [""]
 

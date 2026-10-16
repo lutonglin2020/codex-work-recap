@@ -141,14 +141,27 @@ class Engine:
             return None
         return summary
 
+    def _display_summary(self, current: dict | None) -> tuple[dict | None, bool]:
+        """Keep the last useful recap available without making it current again."""
+        if current:
+            return current, False
+        for previous in self.store.recent_summaries(12):
+            overview = previous.get("overview")
+            if (previous.get("policy_version") == POLICY_VERSION
+                    and isinstance(overview, str) and overview.strip()):
+                return self._public_summary(previous), True
+        return None, False
+
     def snapshot(self) -> dict:
         with self.lock:
             if self.closed:
                 return {"state": "paused", "message": "回顾服务已关闭。", "paused": True, "last_scan_at": iso(self.last_scan_at),
-                        "next_check_at": None, "summary": None, "sources": [], "stats": {"closed": True}}
+                        "next_check_at": None, "summary": None, "display_summary": None,
+                        "display_summary_retained": False, "sources": [], "stats": {"closed": True}}
             summary = self._visible_summary()
             if summary:
                 summary = self._public_summary(summary)
+            display_summary, retained = self._display_summary(summary)
             all_sources = self.store.sources()
             by_id = {s["id"]: s for s in all_sources}
             required = [] if summary is None else list(dict.fromkeys(ref for item in summary["work_items"] for ref in item["source_ids"]))
@@ -168,7 +181,8 @@ class Engine:
                      "scope": "本机主会话，含归档（最近14天、有限分页）", "coverage": "local_persisted", "realtime_subscription": False}
             return copy.deepcopy({"state": self.state, "message": self.message, "paused": self.paused,
                                   "last_scan_at": iso(self.last_scan_at), "next_check_at": iso(self.next_check_at),
-                                  "summary": summary, "sources": public_sources, "stats": stats,
+                                  "summary": summary, "display_summary": display_summary,
+                                  "display_summary_retained": retained, "sources": public_sources, "stats": stats,
                                   "unread_history": [{**self._public_summary(s), "unread": True} for s in self.store.unread_summaries() if summary is None or s["id"] != summary["id"]]})
 
     @staticmethod
@@ -403,7 +417,7 @@ class Engine:
                            "window_kind": kind, "window_start": iso(previous["window_start"]),
                            "window_end": iso(previous["window_end"]), "generated_at": previous["generated_at"],
                            "relation": "overlapping_window" if overlap else "recent_same_work_source",
-                           "purpose": "只判断成果是否已提过；不能补充本次窗口事实，也不能据此判定当前任务已完成。"})
+                           "purpose": "只判断工作内容或进展是否已提过；不能补充本次窗口事实，也不能据此判定当前任务已完成。"})
             if len(result) >= 3:
                 break
         return result
@@ -542,7 +556,7 @@ class Engine:
                 self.store.set("model_calls", calls)
                 self.store.set("last_model_attempt_at_v2", now)
                 self.stats_extra["model_calls"] = calls
-            self._state("summarizing", f"正在整理{label}做成的事。")
+            self._state("summarizing", f"正在整理{label}的工作内容。")
             result = self.adapter.summarize(selected, label, context=context)
             diagnostics = getattr(self.adapter, "last_run_diagnostics", None)
             if isinstance(diagnostics, dict):

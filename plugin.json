@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "work-recap",
-  "version": "0.3.13",
+  "version": "0.4.1",
   "description": "按实际工作进展，适时回顾本机多个 Codex 会话。",
   "author": {"name": "lutonglin2020"},
   "keywords": ["work", "recap", "productivity"],
@@ -11,11 +11,11 @@
       "interface": {
         "displayName": "工作回顾",
         "shortDescription": "在合适的时候，接回你的工作思路",
-        "longDescription": "跨本机 Codex 聊天聚合实际工作进展，在工作告一段落时生成简短回顾。沿用 Codex 登录及用户指定的模型；支持暂停、手动更新、来源核对和已读状态。",
+        "longDescription": "跨本机 Codex 聊天聚合实际工作进展，在工作告一段落时生成简短回顾。沿用 Codex 的 ChatGPT 登录，当前使用 gpt-6.1-sol / medium；支持暂停、手动更新、来源核对和已读状态。",
         "developerName": "lutonglin2020",
         "category": "Productivity",
         "capabilities": ["Read"],
-        "defaultPrompt": ["打开工作回顾，看看最近完成了什么、还有什么待办。"],
+        "defaultPrompt": ["打开工作回顾，看看最近在做什么、推进到哪里。"],
         "brandColor": "#47745F"
       }
     }

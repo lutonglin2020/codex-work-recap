@@ -98,7 +98,8 @@ def install_package(codex):
     for name in ("recap", "ui", "hooks", "skills"):
         shutil.copytree(ROOT / name, stage / name, dirs_exist_ok=True,
                         ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
-    shutil.copy2(ROOT / "plugin.json", stage / "plugin.json")
+    for name in ("plugin.json", "LICENSE", "README.md"):
+        shutil.copy2(ROOT / name, stage / name)
     config = json.loads((ROOT / "mcp.json").read_text(encoding="utf-8"))
     config["mcpServers"]["work-recap"]["command"] = Path(sys.executable).name
     config["mcpServers"]["work-recap"]["env"] = {

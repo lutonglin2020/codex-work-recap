@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import ctypes
 from ctypes import wintypes as wt
+import datetime as dt
 import json
 import os
 from pathlib import Path
@@ -10,7 +11,7 @@ import queue
 import threading
 import time
 
-from .island_paint import IslandPainter, SHADOW
+from .island_paint import IslandPainter, SHADOW, BODY_FONT
 from .frame_clock import FrameClock, WM_FRAME
 from .reveal_policy import RevealPolicy
 from .runtime import request
@@ -18,8 +19,9 @@ from .service import windows_idle_seconds
 from .widget import (WinApi, WindowClass, MonitorInfo, PaintStruct, PROC,
                      atomic_json, clamp_rect, wrap_lines)
 
-WIDTH, FONT, PITCH = 560, 13, 21
-PAD_X, PAD_Y, GAP = 28, 14, 8
+WIDTH, FONT, PITCH = 560, BODY_FONT, 23
+PAD_X, PAD_Y, GAP = 28, 16, 8
+CAPTION_HEIGHT = 22
 COLLAPSED = (120, 22)
 
 
@@ -32,6 +34,23 @@ def empty_status(snapshot):
         "summarizing": "正在整理…",
         "error": "更新失败，稍后重试",
     }.get(snapshot.get("state"), "暂无新进展")
+
+
+def summary_caption(summary):
+    """Only label cached source facts; never infer freshness from the clock."""
+    if not isinstance(summary, dict) or not str(summary.get("overview") or "").strip():
+        return ""
+    label = "上次回顾" if summary.get("retained") else "最新回顾"
+    generated_at = summary.get("generated_at")
+    if not isinstance(generated_at, str):
+        return label
+    try:
+        generated = dt.datetime.fromisoformat(generated_at.replace("Z", "+00:00"))
+        if generated.tzinfo is not None:
+            generated = generated.astimezone(dt.timezone(dt.timedelta(hours=8)))
+        return f"{label}  ·  {generated:%m/%d %H:%M}"
+    except ValueError:
+        return label
 
 
 def inner_width(work_width, scale, has_summary, text_width=0):
@@ -60,6 +79,8 @@ class IslandWidget:
         self.hwnd = self.menu_hwnd = None
         self.visible = self.closed = self.running = False
         self.snapshot, self.overview, self.summary_id = {}, empty_status({}), None
+        self.caption = ""
+        self.retained = False
         self.owner = None
         self.screen_initialized = False
         self.foreground_hwnd = None
@@ -154,9 +175,19 @@ class IslandWidget:
             # A reused morning recap is a new presentation period, not a new
             # model result. Deduplicate repeated popups within that period.
             self.summary_id = f"{summary.get('id')}|{summary.get('period_label', '')}"
+            self.retained = bool(summary.get("retained", False))
+            self.caption = summary_caption(summary)
         else:
             self.overview, self.summary_id = empty_status(value), None
+            self.retained = False
+            self.caption = ""
         self.policy.duration = min(25, max(15, len(self.overview) / 5 + 4))
+
+    def can_auto_reveal(self):
+        return bool(self.summary_id and not self.retained)
+
+    def has_new_summary(self):
+        return self.can_auto_reveal() and self.summary_id != self.policy.last_presented_id
 
     def refresh_environment(self, now):
         self.foreground_hwnd = self.api.user.GetForegroundWindow()
@@ -191,7 +222,7 @@ class IslandWidget:
             size = wt.SIZE()
             self.api.gdi.GetTextExtentPoint32W(dc, text, len(text.encode("utf-16-le"))//2, ctypes.byref(size))
             return size.cx
-        y, lines = PAD_Y, []
+        y, lines = PAD_Y + (CAPTION_HEIGHT if self.caption else 0), []
         # A wide, shallow island follows existing paragraph breaks only; do not
         # force every sentence onto a fresh row and turn it back into a tall card.
         import re
@@ -374,7 +405,7 @@ class IslandWidget:
         display_id = self.summary_id or "status:empty"
         desired = self.policy.step(wall, display_id, reveal_allowed, self.idle,
             hovering=bool(self.hovering or menu_hover), manual=self.manual, dismiss=self.dismiss,
-            automatic_allowed=bool(self.summary_id))
+            automatic_allowed=self.can_auto_reveal())
         if desired == "closed":
             self.manual_peek = False
         self.manual = self.dismiss = False
@@ -386,7 +417,7 @@ class IslandWidget:
             self.last_render = None
             self.publish_state("hidden")
             return
-        signature = (self.overview, bool(self.summary_id), self.scale, self.work)
+        signature = (self.overview, self.caption, bool(self.summary_id), self.scale, self.work)
         if signature != self.signature:
             self.measure(); self.signature = signature
         self.animate_to(desired == "open", now)
@@ -400,7 +431,7 @@ class IslandWidget:
         else:
             self.text_alpha = self.start_text_alpha*max(0, 1-progress/.3)
         self.rect = centered_rect(self.work, self.size, self.scale)
-        pending = bool(self.summary_id and self.summary_id != self.policy.last_presented_id)
+        pending = self.has_new_summary()
         show_content_shape = self.target_open or (progress < .75 and self.start_text_alpha > 0)
         render_key = (self.rect, self.scale, round(self.text_alpha, 3), show_content_shape,
                       self.hovering, pending, self.signature)
@@ -409,7 +440,8 @@ class IslandWidget:
             render_start = time.perf_counter()
             self.painter.render(self.hwnd, (rect[0], rect[1], rect[2]-rect[0], rect[3]-rect[1]),
                 self.scale, self.lines, text_alpha=self.text_alpha,
-                expanded=show_content_shape, hovering=self.hovering, pending=pending)
+                expanded=show_content_shape, hovering=self.hovering, pending=pending,
+                caption=self.caption)
             if self.trace_direction and len(self.frame_trace) < 180:
                 self.frame_trace.append({"at": render_start,
                     "render_ms": round((time.perf_counter()-render_start)*1000, 3),
@@ -420,7 +452,7 @@ class IslandWidget:
             self.screen_initialized = True
         if self.menu_hwnd and not (self.hovering or menu_hover):
             self.close_menu()
-        if self.summary_id and self.target_open and progress >= 1:
+        if self.summary_id and not self.retained and self.target_open and progress >= 1:
             persisted = {"last_auto_wall": self.policy.last_auto_wall,
                          "last_presented_id": self.policy.last_presented_id}
             if persisted != self.last_persisted:

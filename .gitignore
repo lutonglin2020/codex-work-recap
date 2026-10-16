@@ -54,6 +54,11 @@ codex-shot-*
 *.jpeg
 *.webp
 
+# Reviewed public artwork uses synthetic test content only.
+!docs/assets/native-preview.png
+!docs/publicity/*.png
+!docs/publicity/assets/*.png
+
 # Editor and OS state
 .idea/
 .vscode/

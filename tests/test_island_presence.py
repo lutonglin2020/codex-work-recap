@@ -2,7 +2,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from recap.island_widget import IslandWidget, empty_status, inner_width, PAD_X
+from recap.island_widget import IslandWidget, empty_status, inner_width, summary_caption, PAD_X
 from recap.reveal_policy import RevealPolicy
 
 
@@ -92,6 +92,52 @@ class IslandPresenceTests(unittest.TestCase):
         self.assertIsNone(self.widget.summary_id)
         self.assertEqual("暂无新进展", self.widget.overview)
         self.assertNotIn("已完成项目工作", self.widget.overview)
+
+    def test_retained_summary_survives_idle_error_and_updates_without_new_badge(self):
+        self.widget.path = Path("unused")
+        self.widget.policy = RevealPolicy()
+        previous = {"id": "previous", "period_label": "过去的工作片段",
+                    "overview": "导出功能已完成。", "retained": True,
+                    "generated_at": "2026-10-15T18:40:00+08:00"}
+        for state in ("idle", "collecting", "summarizing", "error", "paused"):
+            self.widget.read_json = Mock(return_value={"state": state, "summary": previous})
+            self.widget.read_display()
+            self.assertEqual(self.widget.overview, previous["overview"])
+            self.assertEqual(self.widget.summary_id, "previous|过去的工作片段")
+            self.assertTrue(self.widget.retained)
+            self.assertFalse(self.widget.can_auto_reveal())
+            self.assertFalse(self.widget.has_new_summary())
+            self.assertEqual(self.widget.caption, "上次回顾  ·  10/15 18:40")
+
+        self.widget.read_json = Mock(return_value={"state": "ready", "summary": {
+            "id": "new", "overview": "新修复已完成。", "retained": False}})
+        self.widget.read_display()
+        self.assertEqual(self.widget.overview, "新修复已完成。")
+        self.assertFalse(self.widget.retained)
+        self.assertTrue(self.widget.can_auto_reveal())
+        self.assertTrue(self.widget.has_new_summary())
+        self.assertEqual(self.widget.caption, "最新回顾")
+
+    def test_caption_uses_cached_generation_time_in_recap_timezone(self):
+        self.assertEqual(summary_caption({"overview": "合成回顾", "generated_at": "2026-10-16T02:24:00Z"}),
+                         "最新回顾  ·  10/16 10:24")
+        self.assertEqual(summary_caption({"overview": "合成回顾", "generated_at": "2026-10-16T10:24:00"}),
+                         "最新回顾  ·  10/16 10:24")
+
+    def test_missing_or_invalid_timestamp_does_not_invent_a_fresh_time(self):
+        for value in (None, "", "invalid", 1790000000):
+            self.assertEqual(summary_caption({"overview": "合成回顾", "generated_at": value}), "最新回顾")
+        self.assertEqual(summary_caption(None), "")
+        self.assertEqual(summary_caption({"overview": "  "}), "")
+
+    def test_status_clears_caption_from_a_previous_summary(self):
+        self.widget.path = Path("unused")
+        self.widget.policy = RevealPolicy()
+        self.widget.caption = "上次回顾  ·  10/15 18:40"
+        self.widget.read_json = Mock(return_value={"state": "error", "summary": None})
+        self.widget.read_display()
+        self.assertEqual(self.widget.caption, "")
+        self.assertFalse(self.widget.has_new_summary())
 
     def test_status_fits_content_while_recap_keeps_reading_width(self):
         for scale in (1, 1.5, 1.75, 2):

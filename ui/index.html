@@ -13,33 +13,45 @@
     html, body { margin:0; background:var(--bg); color:var(--fg); }
     body { font-family:var(--font); font-size:14px; line-height:1.85; overflow-wrap:anywhere; }
     [hidden] { display:none !important; }
-    .shell { width:100%; max-width:760px; margin:0 auto; padding:18px 20px 20px; }
-    .header { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; padding-bottom:14px; border-bottom:1px solid var(--line); }
+    .shell { width:100%; max-width:760px; margin:0 auto; padding:24px; }
+    .header { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+    .heading { display:flex; align-items:center; gap:11px; }
+    .mark { width:30px; height:30px; display:grid; place-items:center; border:1px solid var(--line); border-radius:10px; color:var(--muted); }
+    .mark::after { content:''; width:13px; height:4px; border-radius:4px; background:currentColor; }
     h1 { margin:0; font-size:16px; font-weight:600; letter-spacing:-.3px; line-height:1.5; }
-    .meta { display:flex; flex-wrap:wrap; gap:4px 9px; margin-top:4px; color:var(--muted); font-size:11px; line-height:1.6; }
-    .pause-button { width:26px; height:26px; flex:none; display:grid; place-items:center; border:0; border-radius:5px; padding:0; background:transparent; color:var(--muted); cursor:pointer; touch-action:manipulation; }
+    .meta { display:flex; flex-wrap:wrap; gap:4px 9px; margin-top:16px; color:var(--muted); font-size:11px; line-height:1.6; }
+    .pause-button { min-width:36px; min-height:36px; flex:none; display:flex; align-items:center; justify-content:center; gap:7px; border:1px solid var(--line); border-radius:9px; padding:7px 10px; background:transparent; color:var(--fg); font:inherit; font-size:12px; cursor:pointer; touch-action:manipulation; }
     .pause-button:not(:disabled):hover { background:var(--hover); }
     .pause-button:disabled { opacity:.4; cursor:default; }
     .pause-button:focus-visible { outline:2px solid var(--focus); outline-offset:3px; }
     .icon { width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
-    .overview { margin:16px 0 0; white-space:pre-wrap; }
+    .overview { margin:10px 0 0; white-space:pre-wrap; font-size:16px; line-height:1.9; letter-spacing:.1px; }
     .empty { color:var(--muted); font-size:13px; }
     .failure-note { margin:13px 0 0; color:var(--danger); font-size:11px; line-height:1.7; }
-    @media(min-width:760px) { .shell { padding:24px 32px; } }
+    .footer { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; margin-top:22px; padding-top:14px; border-top:1px solid var(--line); font-size:11px; color:var(--muted); }
+    .status { display:inline-flex; align-items:center; gap:6px; }
+    .status::before { content:''; width:5px; height:5px; border-radius:50%; background:currentColor; }
+    .status[data-state="ready"] { color:#47745f; }
+    .status[data-state="error"] { color:var(--danger); }
+    :root[data-theme="dark"] .status[data-state="ready"] { color:#96c4ac; }
+    @media(prefers-color-scheme:dark) { :root:not([data-theme="light"]) .status[data-state="ready"] { color:#96c4ac; } }
+    @media(min-width:760px) { .shell { padding:28px 32px; } }
+    @media(max-width:380px) { .shell { padding:18px; } .overview { font-size:15px; } }
   </style>
 </head>
 <body>
   <div class="shell">
     <header class="header">
-      <div><h1>工作回顾</h1><div class="meta"><span id="period"></span><span id="last-time"></span></div></div>
-      <button id="pause" class="pause-button" type="button" title="暂停自动总结" aria-label="暂停自动总结" disabled><svg id="pause-icon" class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M7 4.5v11M13 4.5v11"/></svg></button>
+      <div class="heading"><span class="mark" aria-hidden="true"></span><h1>工作回顾</h1></div>
+      <button id="pause" class="pause-button" type="button" title="暂停自动总结" aria-label="暂停自动总结" disabled><svg id="pause-icon" class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M7 4.5v11M13 4.5v11"/></svg><span id="pause-label">暂停</span></button>
     </header>
-    <main><p id="overview" class="overview empty">新的工作进展会自动整理在这里。</p><p id="failure-note" class="failure-note" hidden>总结暂时无法更新，稍后会继续检查。</p></main>
+    <main aria-live="polite" aria-atomic="true"><div class="meta"><span id="period"></span><span id="last-time"></span></div><p id="overview" class="overview empty">正在读取回顾…</p><p id="failure-note" class="failure-note" hidden></p></main>
+    <footer class="footer"><span id="status" class="status" role="status">正在连接</span><span>查看缓存不会调用模型</span></footer>
   </div>
   <script>
     'use strict';
     (() => {
-      const refs=Object.fromEntries(['period','last-time','overview','failure-note','pause','pause-icon'].map(id=>[id,document.getElementById(id)]));
+      const refs=Object.fromEntries(['period','last-time','overview','failure-note','pause','pause-icon','pause-label','status'].map(id=>[id,document.getElementById(id)]));
       const states=new Set(['idle','collecting','summarizing','ready','paused','error']);
       const asText=value=>typeof value==='string'?value:value==null?'':String(value);
       const setText=(node,value)=>{const text=asText(value);if(node.textContent!==text)node.textContent=text;};
@@ -50,9 +62,12 @@
       const isLocalHttp=/^https?:$/.test(location.protocol)&&['localhost','127.0.0.1','[::1]'].includes(location.hostname);
       function normalize(value) {
         if(!value||typeof value!=='object'||!states.has(value.state))throw new Error('回顾服务返回了无法识别的状态');
-        const summary=value.summary&&typeof value.summary==='object'?value.summary:null;
-        const retained=['collecting','summarizing','error'].includes(value.state)?current?.summary:null;
-        return {state:value.state,paused:Boolean(value.paused),summary:summary||retained||null};
+        const hasDisplay=Object.prototype.hasOwnProperty.call(value,'display_summary');
+        const candidate=hasDisplay?value.display_summary:value.summary;
+        const summary=candidate&&typeof candidate==='object'?candidate:null;
+        const fallback=!hasDisplay&&!summary&&['collecting','summarizing','error'].includes(value.state)?current?.summary:null;
+        return {state:value.state,paused:Boolean(value.paused),summary:summary||fallback||null,
+          retained:hasDisplay?Boolean(value.display_summary_retained):Boolean(summary?.retained||fallback)};
       }
       function unwrap(value) {
         if(value?.isError)throw new Error('操作暂时未完成');
@@ -65,7 +80,7 @@
       }
       function timestamp(value) {
         const date=new Date(value);if(!value||!Number.isFinite(date.getTime()))return '';
-        try{return new Intl.DateTimeFormat('zh-CN',{timeZone:hostContext.timeZone||'Asia/Shanghai',hour:'2-digit',minute:'2-digit',hour12:false}).format(date);}catch(_){return '';}
+        try{const timeZone=hostContext.timeZone||'Asia/Shanghai';const day=new Intl.DateTimeFormat('zh-CN',{timeZone,year:'numeric',month:'numeric',day:'numeric'});const options={timeZone,hour:'2-digit',minute:'2-digit',hour12:false};if(day.format(date)!==day.format(new Date()))Object.assign(options,{month:'numeric',day:'numeric'});if(date.getUTCFullYear()!==new Date().getUTCFullYear())options.year='numeric';return new Intl.DateTimeFormat('zh-CN',options).format(date);}catch(_){return '';}
       }
       function displayPeriod(summary) {
         const label=asText(summary.period_label)||'最近';const date=new Date(summary.generated_at);
@@ -81,14 +96,19 @@
       function render() {
         const summary=current?.summary;const overview=asText(summary?.overview).trim();const paused=Boolean(current?.paused);
         refs.overview.classList.toggle('empty',!overview);
-        setText(refs.overview,overview||(paused?'自动总结已暂停。':'新的工作进展会自动整理在这里。'));
-        setText(refs.period,summary?displayPeriod(summary):'');const time=timestamp(summary?.generated_at);setText(refs['last-time'],time?time+' 更新':'');
+        const emptyText=paused?'自动总结已暂停。':current?.state==='summarizing'?'正在整理工作进展…':current?.state==='error'?'回顾暂时无法读取。':current?'新的工作进展会自动整理在这里。':'正在读取回顾…';
+        setText(refs.overview,overview||emptyText);
+        setText(refs.period,summary?(current.retained?'上次回顾 · ':'')+displayPeriod(summary):'');const time=timestamp(summary?.generated_at);setText(refs['last-time'],time?time+' 生成':'');
         refs['failure-note'].hidden=current?.state!=='error';
+        setText(refs['failure-note'],overview?'更新暂时失败，仍可查看这条回顾。':'暂时没有可显示的回顾，请稍后重试。');
+        const state=paused?'paused':current?.state;const status={paused:'自动回顾已暂停',summarizing:'正在整理',collecting:'正在检查新进展',ready:'回顾已就绪',idle:'等待新进展',error:'暂时无法更新'};
+        setText(refs.status,status[state]||'正在连接');refs.status.dataset.state=state||'connecting';
         const label=paused?'恢复自动总结':'暂停自动总结';refs.pause.title=label;refs.pause.setAttribute('aria-label',label);refs.pause.setAttribute('aria-pressed',String(paused));refs.pause.disabled=!connected||busy;
+        setText(refs['pause-label'],busy?'处理中':paused?'恢复':'暂停');
         refs['pause-icon'].firstElementChild.setAttribute('d',paused?'m7 4 8 6-8 6Z':'M7 4.5v11M13 4.5v11');
       }
       function accept(value) {if(!value)return false;current=normalize(value);connected=true;render();return true;}
-      function showError() {current={state:'error',paused:current?.paused||false,summary:current?.summary||null};render();}
+      function showError() {current={state:'error',paused:current?.paused||false,summary:current?.summary||null,retained:Boolean(current?.summary)};render();}
       function notify(method,params={}) {if(transport==='mcp'&&!ended)window.parent.postMessage({jsonrpc:'2.0',method,params},peerOrigin);}
       function rpc(method,params={},timeout=20000) {
         return new Promise((resolve,reject)=>{const id='recap-'+(++sequence);const timer=setTimeout(()=>{pending.delete(id);reject(new Error('连接暂时没有响应'));},timeout);pending.set(id,{resolve,reject,timer});window.parent.postMessage({jsonrpc:'2.0',id,method,params},peerOrigin);});

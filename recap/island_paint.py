@@ -12,6 +12,8 @@ import math
 import os
 
 SHADOW = 12
+BODY_FONT = 14
+META_FONT = 11
 P = c.c_void_p
 PP = c.POINTER(P)
 F = c.c_float
@@ -66,9 +68,10 @@ class IslandPainter:
         self.user = c.WinDLL("user32.dll", use_last_error=True, winmode=0x800)
         self.plus = c.WinDLL("gdiplus.dll", winmode=0x800)
         self.token = c.c_size_t()
-        self.image, self.graphics, self.family, self.font, self.format = (P() for _ in range(5))
+        self.image, self.graphics, self.family, self.format = (P() for _ in range(4))
+        self.fonts = {}
         self.dc = self.bitmap = self.old_bitmap = None
-        self.pixels, self.size, self.font_scale = P(), None, None
+        self.pixels, self.size = P(), None
         _bind(self.gdi, "CreateCompatibleDC", [P], P)
         _bind(self.gdi, "CreateDIBSection", [P, c.POINTER(BitmapInfo), U, PP, P, U], P)
         _bind(self.gdi, "SelectObject", [P, P], P)
@@ -181,32 +184,34 @@ class IslandPainter:
             if brush: self.plus.GdipDeleteBrush(brush)
             if path: self.plus.GdipDeletePath(path)
 
-    def _text(self, lines, scale, x, y, width, alpha):
-        if self.font_scale != scale or not self.font:
-            if self.font: self.plus.GdipDeleteFont(self.font)
-            self.font = P()
-            _ok(self.plus.GdipCreateFont(self.family, round(13 * scale), 0, 2, c.byref(self.font)))
-            self.font_scale = scale
+    def _text(self, lines, scale, x, y, width, alpha, *, size=BODY_FONT, color=0xEEF0F3):
+        # Cache the two text sizes so animation does not recreate font handles.
+        key = (scale, size)
+        if key not in self.fonts:
+            font = P()
+            _ok(self.plus.GdipCreateFont(self.family, round(size * scale), 0, 2, c.byref(font)))
+            self.fonts[key] = font
         brush = P()
         try:
             # Shapes use subpixel coverage; glyph baselines use the physical
             # pixel grid so 175% DPI does not alternate half-pixel text rows.
             _ok(self.plus.GdipSetPixelOffsetMode(self.graphics, 3))
-            _ok(self.plus.GdipCreateSolidFill(_argb(0xE4E6E8, alpha), c.byref(brush)))
+            _ok(self.plus.GdipCreateSolidFill(_argb(color, alpha), c.byref(brush)))
             for text, lx, ly in lines:
                 box = RectF(round(x + lx * scale), round(y + ly * scale),
                             max(1, round(width - (lx + 24) * scale)), round(24 * scale))
-                _ok(self.plus.GdipDrawString(self.graphics, str(text), -1, self.font,
+                _ok(self.plus.GdipDrawString(self.graphics, str(text), -1, self.fonts[key],
                                              c.byref(box), self.format, brush))
         finally:
             self.plus.GdipSetPixelOffsetMode(self.graphics, 4)
             if brush: self.plus.GdipDeleteBrush(brush)
 
-    def render(self, hwnd, rect, scale, lines, text_alpha=1.0, pill_alpha=1.0,
-               expanded=True, hovering=False, pending=False):
+    def draw(self, width, height, scale, lines, text_alpha=1.0, pill_alpha=1.0,
+             expanded=True, hovering=False, pending=False, caption=""):
+        """Draw into our own DIB without creating, showing or updating a window."""
         if not self.token.value:
             raise RuntimeError("IslandPainter is closed")
-        x, y, width, height = (round(value) for value in rect)
+        width, height = round(width), round(height)
         scale = float(scale)
         if not math.isfinite(scale) or scale <= 0 or not 0 < width * height <= 8_000_000 or min(width, height) <= 0:
             raise ValueError("Invalid island dimensions or DPI")
@@ -217,26 +222,33 @@ class IslandPainter:
         pw, ph = width - 2 * margin, height - 2 * margin
         pa, ta = min(1.0, max(0.0, pill_alpha)), min(1.0, max(0.0, text_alpha))
         if pw > 0 and ph > 0 and pa:
-            radius = min(ph / 2, 30 * scale)
+            radius = min(ph / 2, 24 * scale)
             for layer in range(8, 0, -1):
                 spread = 9 * scale * layer / 8
                 self._rounded(margin - spread, margin - spread + 1.5 * scale,
                               pw + 2 * spread, ph + 2 * spread, radius + spread,
                               _argb(0, (1 + (1 - layer / 8) * 2) / 255 * pa))
-            self._rounded(margin, margin, pw, ph, radius, _argb(0x171819, pa))
+            self._rounded(margin, margin, pw, ph, radius, _argb(0x3B3E44, pa))
+            border = max(1, .75 * scale)
+            self._rounded(margin + border, margin + border, pw - 2 * border,
+                          ph - 2 * border, max(0, radius - border), _argb(0x1B1D21, pa))
             _ok(self.plus.GdipSetClipRect(self.graphics, margin, margin, pw, ph, 1))
             if expanded and ta:
+                if caption:
+                    self._text([(caption, 28, 16)], scale, margin, margin, pw, ta * pa,
+                               size=META_FONT, color=0x9CA4B1)
                 self._text(lines, scale, margin, margin, pw, ta * pa)
             if not expanded:
                 self._rounded(margin + pw / 2 - 16 * scale, margin + ph / 2 - 1.5 * scale,
                               32 * scale, 3 * scale, 1.5 * scale, _argb(0xB6B8BC, 0.65 * pa))
-                brush = P()
-                try:
-                    _ok(self.plus.GdipCreateSolidFill(_argb(0xB99259 if pending else 0x7A7D82, 0.5 * pa), c.byref(brush)))
-                    _ok(self.plus.GdipFillEllipse(self.graphics, brush, margin + pw / 2 + 24 * scale,
-                                                  margin + ph / 2 - 1.5 * scale, 3 * scale, 3 * scale))
-                finally:
-                    if brush: self.plus.GdipDeleteBrush(brush)
+                if pending:
+                    brush = P()
+                    try:
+                        _ok(self.plus.GdipCreateSolidFill(_argb(0xD8B57A, .9 * pa), c.byref(brush)))
+                        _ok(self.plus.GdipFillEllipse(self.graphics, brush, margin + pw / 2 + 24 * scale,
+                                                      margin + ph / 2 - 2 * scale, 4 * scale, 4 * scale))
+                    finally:
+                        if brush: self.plus.GdipDeleteBrush(brush)
             if expanded and hovering and ta > 0.8:
                 pen = P()
                 try:
@@ -248,6 +260,12 @@ class IslandPainter:
                     _ok(self.plus.GdipDrawLine(self.graphics, pen, cx - d, cy + d, cx + d, cy - d))
                 finally:
                     if pen: self.plus.GdipDeletePen(pen)
+
+    def render(self, hwnd, rect, scale, lines, text_alpha=1.0, pill_alpha=1.0,
+               expanded=True, hovering=False, pending=False, caption=""):
+        x, y, width, height = (round(value) for value in rect)
+        self.draw(width, height, scale, lines, text_alpha, pill_alpha,
+                  expanded, hovering, pending, caption)
         position, size, origin, blend = w.POINT(x, y), w.SIZE(width, height), w.POINT(0, 0), Blend(0, 0, 255, 1)
         if not self.user.UpdateLayeredWindow(hwnd, None, c.byref(position), c.byref(size), self.dc,
                                              c.byref(origin), 0, c.byref(blend), 2):
@@ -255,7 +273,10 @@ class IslandPainter:
 
     def close(self):
         self._drop_canvas()
-        for name, field in (("GdipDeleteFont", "font"), ("GdipDeleteStringFormat", "format"),
+        for font in self.fonts.values():
+            self.plus.GdipDeleteFont(font)
+        self.fonts.clear()
+        for name, field in (("GdipDeleteStringFormat", "format"),
                             ("GdipDeleteFontFamily", "family")):
             value = getattr(self, field)
             if value:
